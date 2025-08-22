@@ -624,11 +624,13 @@ def main():
     # CLI arguments (with safe defaults matching previous behavior)
     parser = argparse.ArgumentParser(description="CellPose-SAM Image Processing")
     # Accept preferred name plus legacy aliases for input directory
-    parser.add_argument("--input-image-folder", "--input", "-i", dest="input", default="input_images",
+    parser.add_argument("--input-image-folder", "--input", "-i", dest="input", default="/storage1/fs1/KerschensteinerD/Active/Emily/PreyCaptureRGC/Immunochemistry/CellPose/input_image",
                         help="Input image folder containing files to process")
     # Explicitly note these are output folders
-    parser.add_argument("--out-images", "-oi", default="output_images", help="Output folder to save processed images")
-    parser.add_argument("--out-results", "-or", default="output_results", help="Output folder to save NPZ/JSON results")
+    parser.add_argument("--out-images", "-oi", default="/storage1/fs1/KerschensteinerD/Active/Emily/PreyCaptureRGC/Immunochemistry/CellPose/output_images",
+                        help="Output folder to save processed images")
+    parser.add_argument("--out-results", "-or", default="/storage1/fs1/KerschensteinerD/Active/Emily/PreyCaptureRGC/Immunochemistry/CellPose/output_results", 
+                        help="Output folder to save NPZ/JSON results")
     parser.add_argument("--type", "-t", default="png", help="Image type/extension to process (e.g., png, tif)")
     parser.add_argument("--contains", "-c", default=None, help="Optional substring filter for filenames")
     parser.add_argument("--three-d", "--3d", dest="do_3D", action="store_true", help="Enable 3D segmentation for Z-stacks (use with TIFF stacks)")
