@@ -1,0 +1,7 @@
+# Minimal requirements for the CP-SAM-Microscope project
+# Note: "skimage" refers to the PyPI package "scikit-image"
+cellpose
+numpy
+matplotlib
+scikit-image
+opencv-python
