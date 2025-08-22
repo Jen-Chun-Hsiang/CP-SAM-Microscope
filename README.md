@@ -39,11 +39,22 @@ If `cellpose-sam` is not available under that exact name in your environment, pl
 A simple way to run the processing script:
 
 ```bash
-python ImageProcessing.py --input /path/to/images --output /path/to/results
+python ImageProcessing.py \
+	--input-image-folder /path/to/images \
+	--out-images /path/to/processed_images \
+	--out-results /path/to/results \
+	--type png \
+	--contains None
 ```
 
+Flags:
+- `--input-image-folder` (alias: `--input`, `-i`): Input image folder (default: `input_images`)
+- `--out-images, -oi`: Folder to save visualization and mask images (default: `output_images`)
+- `--out-results, -or`: Folder to save NPZ/JSON results (default: `output_results`)
+- `--type, -t`: Image file extension to process (default: `png`; examples: `tif`, `jpg`)
+- `--contains, -c`: Optional filename substring filter (case-insensitive). Use `None` or omit to process all images of the selected type.
+
 Notes:
-- Replace the `--input`/`--output` arguments with the flags your `ImageProcessing.py` expects (check the script for exact CLI options).
 - For best results on fluorescent or immunochemistry images, ensure image bit depth and channel assignments are correct before processing.
 
 ## Input / Output

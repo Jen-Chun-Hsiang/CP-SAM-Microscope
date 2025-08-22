@@ -15,6 +15,7 @@ Requirements:
 
 import os
 import glob
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -34,7 +35,8 @@ class CellPoseProcessor:
     def __init__(self, input_folder, image_save_folder, result_save_folder, 
                  model_type='cyto2', channels=[0,0], diameter=30, 
                  flow_threshold=0.4, cellprob_threshold=-2.0, 
-                 min_size=15, normalize=True):
+                 min_size=15, normalize=True,
+                 filename_contains=None, image_type='png'):
         """
         Initialize the CellPose processor optimized for partial membrane labeling
         
@@ -49,10 +51,14 @@ class CellPoseProcessor:
             cellprob_threshold (float): Cell probability threshold (lower = more permissive)
             min_size (int): Minimum cell size in pixels
             normalize (bool): Normalize image intensities
+            filename_contains (str|None): Optional substring to filter input filenames. None = no filter
+            image_type (str): Image extension/type to load (e.g., 'png', 'tif'). Default: 'png'
         """
         self.input_folder = Path(input_folder)
         self.image_save_folder = Path(image_save_folder)
         self.result_save_folder = Path(result_save_folder)
+        self.filename_contains = (filename_contains or None)
+        self.image_type = (image_type or 'png')
         
         # Create output directories if they don't exist
         self.image_save_folder.mkdir(parents=True, exist_ok=True)
@@ -72,11 +78,27 @@ class CellPoseProcessor:
         self.processing_results = []
     
     def find_png_files(self):
-        """Find all PNG files in the input folder"""
-        png_files = list(self.input_folder.glob("*.png"))
-        png_files.extend(list(self.input_folder.glob("*.PNG")))
-        print(f"Found {len(png_files)} PNG files")
-        return sorted(png_files)
+        """Find input images by type with optional filename substring filter.
+
+        Honors self.image_type (extension) and self.filename_contains.
+        Default behavior: all PNG files when no substring is provided.
+        """
+        ext = (self.image_type or 'png').lstrip('.')
+        patterns = [f"*.{ext.lower()}", f"*.{ext.upper()}"]
+
+        files = []
+        for pat in patterns:
+            files.extend(self.input_folder.glob(pat))
+
+        # Optional substring filter (case-insensitive)
+        if self.filename_contains:
+            needle = str(self.filename_contains).lower()
+            files = [p for p in files if needle in p.name.lower()]
+
+        files = sorted(set(files))
+        filt_desc = f" type=.{ext}" + (f", contains='{self.filename_contains}'" if self.filename_contains else "")
+        print(f"Found {len(files)} file(s) in '{self.input_folder}' matching{filt_desc}")
+        return files
     
     def preprocess_image(self, image):
         """
@@ -529,11 +551,25 @@ class CellPoseProcessor:
 
 def main():
     """Main function to run the CellPose processing for membrane-labeled neurons"""
-    
-    # Configuration - MODIFY THESE PATHS
-    input_folder = "input_images"          # Folder containing PNG images
-    image_save_folder = "output_images"     # Folder to save processed images
-    result_save_folder = "output_results"   # Folder to save NPZ and JSON files
+    # CLI arguments (with safe defaults matching previous behavior)
+    parser = argparse.ArgumentParser(description="CellPose-SAM Image Processing")
+    # Accept preferred name plus legacy aliases for input directory
+    parser.add_argument("--input-image-folder", "--input", "-i", dest="input", default="input_images",
+                        help="Input image folder containing files to process")
+    # Explicitly note these are output folders
+    parser.add_argument("--out-images", "-oi", default="output_images", help="Output folder to save processed images")
+    parser.add_argument("--out-results", "-or", default="output_results", help="Output folder to save NPZ/JSON results")
+    parser.add_argument("--type", "-t", default="png", help="Image type/extension to process (e.g., png, tif)")
+    parser.add_argument("--contains", "-c", default=None, help="Optional substring filter for filenames")
+
+    args = parser.parse_args()
+
+    # Configuration - can be overridden by CLI
+    input_folder = args.input            # Folder containing images
+    image_save_folder = args.out_images  # Folder to save processed images
+    result_save_folder = args.out_results # Folder to save NPZ and JSON files
+    image_type = args.type               # Image extension to search for
+    filename_contains = args.contains    # Optional filename substring filter
     
     # OPTIMIZED CellPose settings for partial membrane labeling
     model_type = "cyto2"      # Best for cytoplasmic/membrane staining
@@ -550,6 +586,9 @@ def main():
     print(f"Flow threshold: {flow_threshold} (lower = more permissive)")
     print(f"Cell probability threshold: {cellprob_threshold} (lower = more sensitive)")
     print(f"Minimum cell size: {min_size} pixels")
+    print(f"Input folder: {input_folder}")
+    print(f"Image type: .{image_type}")
+    print(f"Filename contains: {filename_contains if filename_contains else 'None (all)'}")
     print("=" * 60)
     
     # Create processor and run
@@ -563,7 +602,9 @@ def main():
         flow_threshold=flow_threshold,
         cellprob_threshold=cellprob_threshold,
         min_size=min_size,
-        normalize=normalize
+        normalize=normalize,
+        filename_contains=filename_contains,
+        image_type=image_type
     )
     
     # Process all images
