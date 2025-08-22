@@ -74,7 +74,7 @@ class CellPoseProcessor:
         self.cellprob_threshold = cellprob_threshold
         self.min_size = min_size
         self.normalize = normalize
-    self.do_3D = bool(do_3D)
+        self.do_3D = bool(do_3D)
         
         # Results storage
         self.processing_results = []
