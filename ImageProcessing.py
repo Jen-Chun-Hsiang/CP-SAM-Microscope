@@ -36,7 +36,7 @@ class CellPoseProcessor:
                  model_type='cyto2', channels=[0,0], diameter=30, 
                  flow_threshold=0.4, cellprob_threshold=-2.0, 
                  min_size=15, normalize=True,
-                 filename_contains=None, image_type='png'):
+                 filename_contains=None, image_type='png', do_3D=False):
         """
         Initialize the CellPose processor optimized for partial membrane labeling
         
@@ -53,6 +53,7 @@ class CellPoseProcessor:
             normalize (bool): Normalize image intensities
             filename_contains (str|None): Optional substring to filter input filenames. None = no filter
             image_type (str): Image extension/type to load (e.g., 'png', 'tif'). Default: 'png'
+            do_3D (bool): Enable 3D processing for Z-stacks (set True for volumetric TIF stacks)
         """
         self.input_folder = Path(input_folder)
         self.image_save_folder = Path(image_save_folder)
@@ -73,6 +74,7 @@ class CellPoseProcessor:
         self.cellprob_threshold = cellprob_threshold
         self.min_size = min_size
         self.normalize = normalize
+    self.do_3D = bool(do_3D)
         
         # Results storage
         self.processing_results = []
@@ -102,7 +104,7 @@ class CellPoseProcessor:
     
     def preprocess_image(self, image):
         """
-        Preprocess image for better membrane detection with varying backgrounds
+        Preprocess image (2D or 3D) for better membrane detection with varying backgrounds
         
         Args:
             image (np.array): Input image
@@ -110,31 +112,50 @@ class CellPoseProcessor:
         Returns:
             np.array: Preprocessed image
         """
-        # Convert to grayscale if needed
-        if len(image.shape) == 3:
-            if image.shape[2] == 3:
-                # Convert RGB to grayscale using weighted average
-                gray = 0.299 * image[:,:,0] + 0.587 * image[:,:,1] + 0.114 * image[:,:,2]
+        def _enhance_2d(img2d):
+            # Convert to grayscale if needed
+            if img2d.ndim == 3:
+                if img2d.shape[2] == 3:
+                    gray2d = 0.299 * img2d[:,:,0] + 0.587 * img2d[:,:,1] + 0.114 * img2d[:,:,2]
+                else:
+                    gray2d = img2d[:,:,0]
             else:
-                gray = image[:,:,0]  # Take first channel
-        else:
-            gray = image.copy()
-        
-        # Normalize to 0-255 range
-        gray = ((gray - gray.min()) / (gray.max() - gray.min()) * 255).astype(np.uint8)
-        
-        # Apply CLAHE (Contrast Limited Adaptive Histogram Equalization) 
-        # to handle varying backgrounds
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-        enhanced = clahe.apply(gray)
-        
-        # Optional: Apply mild Gaussian blur to reduce noise
-        enhanced = cv2.GaussianBlur(enhanced, (3, 3), 0.5)
-        
-        # Convert back to expected format for CellPose
-        if self.channels == [0, 0]:  # Grayscale
+                gray2d = img2d.copy()
+
+            # Normalize to 0-255 range
+            ptp = gray2d.max() - gray2d.min()
+            if ptp == 0:
+                gray2d = np.zeros_like(gray2d, dtype=np.uint8)
+            else:
+                gray2d = ((gray2d - gray2d.min()) / ptp * 255).astype(np.uint8)
+
+            # CLAHE + light blur
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+            enhanced2d = clahe.apply(gray2d)
+            enhanced2d = cv2.GaussianBlur(enhanced2d, (3, 3), 0.5)
+            return enhanced2d
+
+        # 3D volume: process slice-by-slice
+        if self.do_3D and image.ndim >= 3:
+            # Handle (Z,Y,X) or (Z,Y,X,C)
+            if image.ndim == 3 or (image.ndim == 4 and image.shape[-1] not in (3,4)):
+                # Assume (Z,Y,X)
+                enhanced_stack = np.stack([_enhance_2d(image[z]) for z in range(image.shape[0])], axis=0)
+            else:
+                # Assume (Z,Y,X,C)
+                enhanced_stack = np.stack([_enhance_2d(image[z]) for z in range(image.shape[0])], axis=0)
+
+            if self.channels == [0, 0]:
+                return enhanced_stack  # (Z,Y,X)
+            else:
+                # Expand to pseudo-RGB per slice: (Z,Y,X,3)
+                return np.stack([enhanced_stack, enhanced_stack, enhanced_stack], axis=-1)
+
+        # 2D image path (original behavior)
+        enhanced = _enhance_2d(image)
+        if self.channels == [0, 0]:
             return enhanced
-        else:  # Convert to RGB format
+        else:
             return np.stack([enhanced, enhanced, enhanced], axis=-1)
     
     def load_image(self, image_path):
@@ -177,7 +198,7 @@ class CellPoseProcessor:
                 cellprob_threshold=self.cellprob_threshold,
                 min_size=self.min_size,
                 normalize=self.normalize,
-                do_3D=False,  # 2D segmentation
+                do_3D=self.do_3D,  # Enable 3D when requested
                 net_avg=True,  # Average networks for better results
                 augment=True,  # Use test-time augmentation
                 tile=True,     # Use tiling for large images
@@ -245,8 +266,22 @@ class CellPoseProcessor:
         Returns:
             dict: Dictionary containing measurements
         """
+        # Build an intensity image matching masks shape when possible
+        intensity_image = None
+        if masks is not None:
+            if masks.ndim == 2:
+                if image.ndim == 2:
+                    intensity_image = image
+                elif image.ndim == 3 and image.shape[2] >= 1:
+                    intensity_image = image[:, :, 0]
+            elif masks.ndim == 3:
+                if image.ndim == 3 and image.shape == masks.shape:
+                    intensity_image = image
+                elif image.ndim == 4 and image.shape[:3] == masks.shape:
+                    intensity_image = image[..., 0]
+
         # Get region properties
-        props = measure.regionprops(masks, intensity_image=image[:,:,0] if len(image.shape)==3 else image)
+        props = measure.regionprops(masks, intensity_image=intensity_image)
         
         measurements = {
             'cell_count': len(props),
@@ -265,19 +300,29 @@ class CellPoseProcessor:
         for prop in props:
             measurements['cell_ids'].append(prop.label)
             measurements['areas'].append(prop.area)
-            measurements['perimeters'].append(prop.perimeter)
+            # Perimeter may be undefined in 3D
+            perim = getattr(prop, 'perimeter', np.nan)
+            measurements['perimeters'].append(perim)
             measurements['centroids'].append(prop.centroid)
-            measurements['mean_intensities'].append(prop.mean_intensity)
-            measurements['max_intensities'].append(prop.max_intensity)
-            measurements['min_intensities'].append(prop.min_intensity)
-            measurements['eccentricities'].append(prop.eccentricity)
-            measurements['solidity'].append(prop.solidity)
+            # Intensity metrics are only valid if intensity_image is provided
+            if intensity_image is not None:
+                measurements['mean_intensities'].append(getattr(prop, 'mean_intensity', np.nan))
+                measurements['max_intensities'].append(getattr(prop, 'max_intensity', np.nan))
+                measurements['min_intensities'].append(getattr(prop, 'min_intensity', np.nan))
+            else:
+                measurements['mean_intensities'].append(np.nan)
+                measurements['max_intensities'].append(np.nan)
+                measurements['min_intensities'].append(np.nan)
+            measurements['eccentricities'].append(getattr(prop, 'eccentricity', np.nan))
+            measurements['solidity'].append(getattr(prop, 'solidity', np.nan))
             
             # Calculate aspect ratio
-            if prop.minor_axis_length > 0:
-                aspect_ratio = prop.major_axis_length / prop.minor_axis_length
+            maj = getattr(prop, 'major_axis_length', None)
+            minr = getattr(prop, 'minor_axis_length', None)
+            if maj is not None and minr is not None and minr > 0:
+                aspect_ratio = maj / minr
             else:
-                aspect_ratio = 1.0
+                aspect_ratio = np.nan
             measurements['aspect_ratios'].append(aspect_ratio)
         
         return measurements
@@ -298,36 +343,57 @@ class CellPoseProcessor:
         # Create figure with more subplots for membrane labeling analysis
         fig, axes = plt.subplots(2, 3, figsize=(18, 12))
         
+        # Prepare 2D views: for 3D, use maximum intensity projection (MIP)
+        def _mip(img):
+            if img is None:
+                return None
+            if img.ndim == 2:
+                return img
+            if img.ndim == 3:
+                return np.max(img, axis=0)
+            if img.ndim == 4:  # (Z,Y,X,C)
+                return np.max(img, axis=0)
+            return img
+
+        orig_view = _mip(original_image)
+        pre_view = _mip(preprocessed_image)
+
         # Original image
-        if len(original_image.shape) == 3:
-            axes[0,0].imshow(original_image)
-        else:
-            axes[0,0].imshow(original_image, cmap='gray')
+        if orig_view is not None:
+            if orig_view.ndim == 3:
+                axes[0,0].imshow(orig_view)
+            else:
+                axes[0,0].imshow(orig_view, cmap='gray')
         axes[0,0].set_title('Original Image')
         axes[0,0].axis('off')
         
         # Preprocessed image
-        if len(preprocessed_image.shape) == 3:
-            axes[0,1].imshow(preprocessed_image[:,:,0], cmap='gray')
-        else:
-            axes[0,1].imshow(preprocessed_image, cmap='gray')
+        if pre_view is not None:
+            if pre_view.ndim == 3:
+                axes[0,1].imshow(pre_view[:,:,0], cmap='gray')
+            else:
+                axes[0,1].imshow(pre_view, cmap='gray')
         axes[0,1].set_title('Preprocessed (Enhanced)')
         axes[0,1].axis('off')
         
         # Segmentation masks
         if masks is not None and masks.max() > 0:
+            masks_view = masks
+            if masks.ndim == 3:
+                masks_view = np.max(masks, axis=0)  # 2D projection of labels
             # Color each cell differently
-            axes[0,2].imshow(masks, cmap='tab20', vmax=20)
+            axes[0,2].imshow(masks_view, cmap='tab20', vmax=20)
             axes[0,2].set_title(f'Segmentation Masks\n({len(np.unique(masks))-1} cells detected)')
             axes[0,2].axis('off')
             
             # Overlay on original
-            if len(original_image.shape) == 3:
-                base_img = original_image[:,:,0] if original_image.shape[2] == 3 else original_image[:,:,0]
-            else:
-                base_img = original_image
+            if orig_view is not None:
+                if orig_view.ndim == 3:
+                    base_img = orig_view[:,:,0] if orig_view.shape[2] >= 1 else np.mean(orig_view, axis=2)
+                else:
+                    base_img = orig_view
             
-            overlay_img = label2rgb(masks, image=base_img, alpha=0.4, bg_label=0, colors=plt.cm.Set1(np.linspace(0, 1, 12)))
+            overlay_img = label2rgb(masks_view, image=base_img, alpha=0.4, bg_label=0, colors=plt.cm.Set1(np.linspace(0, 1, 12)))
             axes[1,0].imshow(overlay_img)
             axes[1,0].set_title('Overlay on Original')
             axes[1,0].axis('off')
@@ -338,8 +404,8 @@ class CellPoseProcessor:
                 contour_img = np.stack([contour_img, contour_img, contour_img], axis=-1)
             
             # Draw contours for each cell
-            for cell_id in np.unique(masks)[1:]:  # Skip background (0)
-                cell_mask = (masks == cell_id).astype(np.uint8)
+            for cell_id in np.unique(masks_view)[1:]:  # Skip background (0)
+                cell_mask = (masks_view == cell_id).astype(np.uint8)
                 contours, _ = cv2.findContours(cell_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                 cv2.drawContours(contour_img, contours, -1, (255, 255, 0), 2)
                 
@@ -356,7 +422,7 @@ class CellPoseProcessor:
             axes[1,1].axis('off')
             
             # Cell size distribution
-            props = measure.regionprops(masks)
+            props = measure.regionprops(masks_view)
             areas = [prop.area for prop in props]
             if areas:
                 axes[1,2].hist(areas, bins=min(20, len(areas)), alpha=0.7, edgecolor='black')
@@ -410,10 +476,14 @@ class CellPoseProcessor:
         # Save masks as image
         if masks is not None:
             mask_path = self.image_save_folder / f"{base_name}_masks.png"
-            # Normalize masks for saving
-            mask_normalized = (masks * 255 / masks.max()).astype(np.uint8) if masks.max() > 0 else masks.astype(np.uint8)
+            # Use max projection for 3D mask preview
+            if masks.ndim == 3:
+                mask_view = np.max(masks, axis=0)
+            else:
+                mask_view = masks
+            mask_normalized = (mask_view * 255 / mask_view.max()).astype(np.uint8) if mask_view.max() > 0 else mask_view.astype(np.uint8)
             cv2.imwrite(str(mask_path), mask_normalized)
-            print(f"Saved masks: {mask_path}")
+            print(f"Saved mask preview: {mask_path}")
         
         # Save NPZ file with all results
         npz_path = self.result_save_folder / f"{base_name}_results.npz"
@@ -500,11 +570,11 @@ class CellPoseProcessor:
             self.save_results(image_path.name, original_image, None, None, measurements, visualization)
     
     def process_all_images(self):
-        """Process all PNG images in the input folder"""
+        """Process all images in the input folder matching filters"""
         png_files = self.find_png_files()
         
         if not png_files:
-            print("No PNG files found in the input folder")
+            print("No images found in the input folder matching filters")
             return
         
         print(f"Starting processing of {len(png_files)} images...")
@@ -561,6 +631,7 @@ def main():
     parser.add_argument("--out-results", "-or", default="output_results", help="Output folder to save NPZ/JSON results")
     parser.add_argument("--type", "-t", default="png", help="Image type/extension to process (e.g., png, tif)")
     parser.add_argument("--contains", "-c", default=None, help="Optional substring filter for filenames")
+    parser.add_argument("--three-d", "--3d", dest="do_3D", action="store_true", help="Enable 3D segmentation for Z-stacks (use with TIFF stacks)")
 
     args = parser.parse_args()
 
@@ -570,6 +641,7 @@ def main():
     result_save_folder = args.out_results # Folder to save NPZ and JSON files
     image_type = args.type               # Image extension to search for
     filename_contains = args.contains    # Optional filename substring filter
+    do_3D = bool(args.do_3D)
     
     # OPTIMIZED CellPose settings for partial membrane labeling
     model_type = "cyto2"      # Best for cytoplasmic/membrane staining
@@ -589,6 +661,7 @@ def main():
     print(f"Input folder: {input_folder}")
     print(f"Image type: .{image_type}")
     print(f"Filename contains: {filename_contains if filename_contains else 'None (all)'}")
+    print(f"3D processing: {'ON' if do_3D else 'OFF'}")
     print("=" * 60)
     
     # Create processor and run
@@ -604,7 +677,8 @@ def main():
         min_size=min_size,
         normalize=normalize,
         filename_contains=filename_contains,
-        image_type=image_type
+    image_type=image_type,
+    do_3D=do_3D
     )
     
     # Process all images

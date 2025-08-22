@@ -54,6 +54,22 @@ Flags:
 - `--type, -t`: Image file extension to process (default: `png`; examples: `tif`, `jpg`)
 - `--contains, -c`: Optional filename substring filter (case-insensitive). Use `None` or omit to process all images of the selected type.
 
+### 3D (Z-stack) processing
+
+Cellpose supports 3D segmentation. In this script you can enable it with:
+
+```bash
+python ImageProcessing.py \
+	--input-image-folder /path/to/stacks \
+	--type tif \
+	--three-d
+```
+
+Recommended 3D file format: multi-page TIFF stacks where each file contains a full Z-stack as pages (shape `(Z, Y, X)` or `(Z, Y, X, C)`). The script will:
+- Preprocess each Z-slice and run 3D segmentation (`--three-d`).
+- Save a 2D preview (max intensity projection) of masks and visualization for quick inspection.
+- Store full arrays (original image, masks, flows if available, measurements) in the compressed NPZ per image.
+
 Notes:
 - For best results on fluorescent or immunochemistry images, ensure image bit depth and channel assignments are correct before processing.
 
