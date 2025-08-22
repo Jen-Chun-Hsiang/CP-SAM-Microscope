@@ -26,7 +26,26 @@ import json
 
 try:
     from cellpose import models, io, plot
+    import cellpose
     print("CellPose imported successfully")
+    
+    # Try to get version using different methods
+    try:
+        version = cellpose.__version__
+        print(f"CellPose version: {version}")
+    except AttributeError:
+        try:
+            import pkg_resources
+            version = pkg_resources.get_distribution("cellpose").version
+            print(f"CellPose version: {version}")
+        except:
+            try:
+                import importlib.metadata
+                version = importlib.metadata.version("cellpose")
+                print(f"CellPose version: {version}")
+            except:
+                print("Could not determine CellPose version")
+                
 except ImportError:
     print("Error: CellPose not installed. Install with: pip install cellpose")
     exit(1)
