@@ -669,7 +669,7 @@ def main():
     # CLI arguments (with safe defaults matching previous behavior)
     parser = argparse.ArgumentParser(description="CellPose-SAM Image Processing")
     # Accept preferred name plus legacy aliases for input directory
-    parser.add_argument("--input-image-folder", "--input", "-i", dest="input", default="/storage1/fs1/KerschensteinerD/Active/Emily/PreyCaptureRGC/Immunochemistry/CellPose/input_image",
+    parser.add_argument("--input-image-folder", "--input", "-i", dest="input", default="/storage1/fs1/KerschensteinerD/Active/Emily/PreyCaptureRGC/Immunochemistry/CellPose/input_images",
                         help="Input image folder containing files to process")
     # Explicitly note these are output folders
     parser.add_argument("--out-images", "-oi", default="/storage1/fs1/KerschensteinerD/Active/Emily/PreyCaptureRGC/Immunochemistry/CellPose/output_images",
