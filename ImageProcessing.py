@@ -36,7 +36,8 @@ class CellPoseProcessor:
                  model_type='cyto2', channels=[0,0], diameter=30, 
                  flow_threshold=0.4, cellprob_threshold=-2.0, 
                  min_size=15, normalize=True,
-                 filename_contains=None, image_type='png', do_3D=False):
+                 filename_contains=None, image_type='png', do_3D=False,
+                 gpu=None):
         """
         Initialize the CellPose processor optimized for partial membrane labeling
         
@@ -54,6 +55,7 @@ class CellPoseProcessor:
             filename_contains (str|None): Optional substring to filter input filenames. None = no filter
             image_type (str): Image extension/type to load (e.g., 'png', 'tif'). Default: 'png'
             do_3D (bool): Enable 3D processing for Z-stacks (set True for volumetric TIF stacks)
+            gpu (bool|None): If True force GPU, if False force CPU, if None auto-detect (default)
         """
         self.input_folder = Path(input_folder)
         self.image_save_folder = Path(image_save_folder)
@@ -65,9 +67,20 @@ class CellPoseProcessor:
         self.image_save_folder.mkdir(parents=True, exist_ok=True)
         self.result_save_folder.mkdir(parents=True, exist_ok=True)
         
-        # Initialize CellPose model
-        print(f"Initializing CellPose model: {model_type}")
-        self.model = models.Cellpose(model_type=model_type)
+        # Determine GPU usage
+        if gpu is None:
+            # Auto-detect GPU availability (CUDA)
+            try:
+                self.gpu = bool(models.use_gpu())
+            except Exception:
+                self.gpu = False
+        else:
+            self.gpu = bool(gpu)
+
+        # Initialize CellPose model with device preference
+        device_str = 'GPU (CUDA)' if self.gpu else 'CPU'
+        print(f"Initializing CellPose model: {model_type} on {device_str}")
+        self.model = models.Cellpose(model_type=model_type, gpu=self.gpu)
         self.channels = channels
         self.diameter = diameter
         self.flow_threshold = flow_threshold
@@ -634,6 +647,9 @@ def main():
     parser.add_argument("--type", "-t", default="png", help="Image type/extension to process (e.g., png, tif)")
     parser.add_argument("--contains", "-c", default=None, help="Optional substring filter for filenames")
     parser.add_argument("--three-d", "--3d", dest="do_3D", action="store_true", help="Enable 3D segmentation for Z-stacks (use with TIFF stacks)")
+    gpu_group = parser.add_mutually_exclusive_group()
+    gpu_group.add_argument("--gpu", dest="gpu", action="store_true", help="Force GPU (CUDA) if available")
+    gpu_group.add_argument("--cpu", dest="cpu", action="store_true", help="Force CPU")
 
     args = parser.parse_args()
 
@@ -644,6 +660,12 @@ def main():
     image_type = args.type               # Image extension to search for
     filename_contains = args.contains    # Optional filename substring filter
     do_3D = bool(args.do_3D)
+    # Resolve GPU preference: default None = auto
+    gpu_pref = None
+    if getattr(args, 'gpu', False):
+        gpu_pref = True
+    if getattr(args, 'cpu', False):
+        gpu_pref = False
     
     # OPTIMIZED CellPose settings for partial membrane labeling
     model_type = "cyto2"      # Best for cytoplasmic/membrane staining
@@ -664,6 +686,12 @@ def main():
     print(f"Image type: .{image_type}")
     print(f"Filename contains: {filename_contains if filename_contains else 'None (all)'}")
     print(f"3D processing: {'ON' if do_3D else 'OFF'}")
+    if gpu_pref is True:
+        print("Device preference: GPU (forced)")
+    elif gpu_pref is False:
+        print("Device preference: CPU (forced)")
+    else:
+        print("Device preference: auto-detect")
     print("=" * 60)
     
     # Create processor and run
@@ -680,7 +708,8 @@ def main():
         normalize=normalize,
         filename_contains=filename_contains,
     image_type=image_type,
-    do_3D=do_3D
+    do_3D=do_3D,
+    gpu=gpu_pref
     )
     
     # Process all images
