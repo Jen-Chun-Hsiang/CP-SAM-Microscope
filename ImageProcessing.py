@@ -99,7 +99,20 @@ class CellPoseProcessor:
         # Initialize CellPose model with device preference
         device_str = 'GPU (CUDA)' if self.gpu else 'CPU'
         print(f"Initializing CellPose model: {model_type} on {device_str}")
-        self.model = models.Cellpose(model_type=model_type, gpu=self.gpu)
+        # Compatibility: Cellpose >=3.0 uses CellposeModel; older versions used Cellpose
+        ModelClass = getattr(models, "Cellpose", None)
+        if ModelClass is None:
+            ModelClass = getattr(models, "CellposeModel", None)
+        if ModelClass is None:
+            raise AttributeError(
+                "cellpose.models has neither 'Cellpose' nor 'CellposeModel'. "
+                "Please verify your Cellpose installation."
+            )
+        self.model = ModelClass(model_type=model_type, gpu=self.gpu)
+        try:
+            print(f"Using model class: {ModelClass.__name__}")
+        except Exception:
+            pass
         self.channels = channels
         self.diameter = diameter
         self.flow_threshold = flow_threshold
