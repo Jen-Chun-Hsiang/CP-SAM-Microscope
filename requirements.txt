@@ -1,7 +1,19 @@
 # Minimal requirements for the CP-SAM-Microscope project
 # Note: "skimage" refers to the PyPI package "scikit-image"
-cellpose
-numpy
-matplotlib
-scikit-image
-opencv-python
+# Version constraints ensure compatibility across all dependencies
+
+# Core dependencies with version constraints to avoid conflicts
+numpy>=1.22.4,<2.0  # Required by matplotlib, pandas, contourpy (all need <2.0)
+scipy>=1.9.0,<1.15.0  # Compatible with numpy<2.0
+
+# Image processing and scientific computing
+cellpose>=2.0  # Main segmentation tool
+scikit-image>=0.19.0  # Image processing utilities
+opencv-python>=4.5.0  # Computer vision library
+
+# Visualization
+matplotlib>=3.5.0  # Plotting library (requires numpy<2)
+
+# Data handling (if needed)
+pandas>=1.4.0  # Data analysis (requires numpy<2 and pytz)
+pytz>=2020.1  # Timezone support for pandas
