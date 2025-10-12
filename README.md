@@ -13,9 +13,22 @@ This project uses the open-source `cellpose-sam` package to enhance the imaging 
 ## Requirements
 
 - Python 3.8+
-- GPU recommended for large datasets (optional)
+- GPU with CUDA recommended (10-50x faster than CPU)
 
-Assumed Python packages (install below). If the exact package name differs in your environment, adapt as needed.
+## GPU Setup
+
+**To verify GPU is working:**
+```bash
+python cellpose_test.py
+```
+
+**If GPU not detected, install PyTorch with CUDA:**
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+```
+
+**GPU usage is automatic** - scripts will use GPU if available, CPU otherwise.
+Force specific device with `--gpu` or `--cpu` flags.
 
 ## Installation
 

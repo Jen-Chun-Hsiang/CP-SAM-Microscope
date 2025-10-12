@@ -88,31 +88,31 @@ class CellPoseProcessor:
         
         # Determine GPU usage
         if gpu is None:
-            # Auto-detect GPU availability (CUDA)
-            try:
-                self.gpu = bool(models.use_gpu())
-            except Exception:
-                self.gpu = False
+            self.gpu = bool(models.use_gpu())
         else:
             self.gpu = bool(gpu)
-
-        # Initialize CellPose model with device preference
-        device_str = 'GPU (CUDA)' if self.gpu else 'CPU'
-        print(f"Initializing CellPose model: {model_type} on {device_str}")
-        # Compatibility: Cellpose >=3.0 uses CellposeModel; older versions used Cellpose
+        
+        # Log GPU status
+        print(f"\n{'='*50}")
+        print(f"Initializing Cellpose: {model_type}")
+        print(f"Device: {'GPU' if self.gpu else 'CPU'}")
+        if self.gpu:
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    print(f"GPU: {torch.cuda.get_device_name(0)}")
+            except:
+                pass
+        print(f"{'='*50}\n")
+        
+        # Initialize model
         ModelClass = getattr(models, "Cellpose", None)
         if ModelClass is None:
             ModelClass = getattr(models, "CellposeModel", None)
         if ModelClass is None:
-            raise AttributeError(
-                "cellpose.models has neither 'Cellpose' nor 'CellposeModel'. "
-                "Please verify your Cellpose installation."
-            )
+            raise AttributeError("cellpose.models has neither 'Cellpose' nor 'CellposeModel'")
+        
         self.model = ModelClass(model_type=model_type, gpu=self.gpu)
-        try:
-            print(f"Using model class: {ModelClass.__name__}")
-        except Exception:
-            pass
         self.channels = channels
         self.diameter = diameter
         self.flow_threshold = flow_threshold

@@ -1,44 +1,22 @@
-# cellpose_test.py
+#!/usr/bin/env python3
+"""Minimal GPU test for Cellpose"""
 import torch
-import cellpose
+import numpy as np
 from cellpose import models
 
-print("✅ Successfully imported PyTorch and Cellpose")
+# Check GPU
+cuda = torch.cuda.is_available()
+gpu_ok = models.use_gpu()
 
-# GPU status
-print("PyTorch version:", torch.__version__)
-print("CUDA available:", torch.cuda.is_available())
-if torch.cuda.is_available():
-    print("CUDA version:", torch.version.cuda)
-    print("Device name:", torch.cuda.get_device_name(0))
+print(f"CUDA available: {cuda}")
+if cuda:
+    print(f"GPU: {torch.cuda.get_device_name(0)}")
+print(f"Cellpose GPU: {gpu_ok}")
 
-# Cellpose version
-print("Cellpose version:", getattr(cellpose, "__version__", "unknown"))
-
-# Cellpose GPU diagnostics
-print("\nCellpose GPU diagnostics:")
-cellpose_gpu = None
-try:
-    cellpose_gpu = bool(models.use_gpu())
-    print("models.use_gpu():", cellpose_gpu)
-except Exception as exc:
-    print("models.use_gpu() check failed:", exc)
-
-if cellpose_gpu:
-    try:
-        test_model = models.Cellpose(model_type="cyto", gpu=True)
-        device = getattr(getattr(test_model, "net", None), "device", None)
-        print("Cellpose model device:", device or "unknown")
-    except Exception as exc:
-        print("Cellpose GPU model init failed:", exc)
-    else:
-        del test_model
-else:
-    print("Cellpose reports GPU unavailable; using CPU fallback.")
-
-# Simple sanity run: show help for CLI
-print("\nRunning Cellpose help command...")
-import subprocess
-subprocess.run(["python3", "-m", "cellpose", "--help"])
-
-print("\n✅ Test finished successfully.")
+# Test inference
+print("\nTesting inference...")
+model = models.Cellpose(model_type='cyto2', gpu=gpu_ok)
+img = np.random.randint(0, 255, (256, 256), dtype=np.uint8)
+masks, _, _, _ = model.eval(img, diameter=30, channels=[0,0])
+print(f"✅ Success! Found {len(np.unique(masks))-1} objects")
+print(f"Device: {'GPU' if gpu_ok else 'CPU'}")

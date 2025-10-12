@@ -83,26 +83,22 @@ def main():
     else:
         image_type = detect_image_type(raw_folder)
 
-    # Resolve GPU preference
+    # Resolve GPU preference - Default to auto-detect (will use GPU if available)
     gpu_pref = None
     if args.gpu:
         gpu_pref = True
-    if args.cpu:
+    elif args.cpu:
         gpu_pref = False
 
     print("Simple CellPose runner")
     print(f"  Raw folder: {raw_folder}")
-    print(f"  Output images: {images_out}")
-    print(f"  Output results: {results_out}")
+    print(f"  Output: {out_folder}")
     print(f"  Image type: .{image_type}")
-    print(f"  Filename contains filter: {args.contains}")
-    print(f"  3D processing: {'ON' if args.do_3D else 'OFF'}")
-    if gpu_pref is True:
-        print("  Device preference: GPU (forced)")
-    elif gpu_pref is False:
-        print("  Device preference: CPU (forced)")
-    else:
-        print("  Device preference: auto-detect")
+    if args.contains:
+        print(f"  Filter: contains '{args.contains}'")
+    print(f"  3D: {'ON' if args.do_3D else 'OFF'}")
+    print(f"  GPU: {'Force ON' if gpu_pref is True else 'Force OFF' if gpu_pref is False else 'Auto'}")
+    print()
 
     # Minimal, sensible defaults
     processor = CellPoseProcessor(
