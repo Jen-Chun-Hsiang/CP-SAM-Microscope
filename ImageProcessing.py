@@ -245,20 +245,45 @@ class CellPoseProcessor:
             print(f"    Cell probability threshold: {self.cellprob_threshold}")
             print(f"    Min size: {self.min_size}")
             
-            masks, flows, styles, diameters = self.model.eval(
-                image, 
-                diameter=self.diameter,
-                channels=self.channels,
-                flow_threshold=self.flow_threshold,
-                cellprob_threshold=self.cellprob_threshold,
-                min_size=self.min_size,
-                normalize=self.normalize,
-                do_3D=self.do_3D,  # Enable 3D when requested
-                net_avg=True,  # Average networks for better results
-                augment=True,  # Use test-time augmentation
-                tile=True,     # Use tiling for large images
-                tile_overlap=0.1
-            )
+            # Prepare eval parameters (compatible with Cellpose 2.0+)
+            eval_params = {
+                'diameter': self.diameter,
+                'channels': self.channels,
+                'flow_threshold': self.flow_threshold,
+                'cellprob_threshold': self.cellprob_threshold,
+                'min_size': self.min_size,
+                'normalize': self.normalize,
+                'do_3D': self.do_3D,
+            }
+            
+            # Add optional parameters that may not be available in all versions
+            # Cellpose 2.0+ uses 'resample' instead of 'net_avg'
+            # 'augment' and 'tile' parameters may vary by version
+            try:
+                # Try with tile parameters (for large images)
+                masks, flows, styles, diameters = self.model.eval(
+                    image,
+                    **eval_params,
+                    resample=True,  # Use flow resampling for better results (Cellpose 2.0+)
+                    augment=False,  # Disable test-time augmentation (can be slow)
+                    tile=True,      # Use tiling for large images
+                    tile_overlap=0.1
+                )
+            except TypeError as te:
+                # Fall back without unsupported parameters
+                print(f"  Note: Some eval parameters not supported, using basic parameters")
+                try:
+                    masks, flows, styles, diameters = self.model.eval(
+                        image,
+                        **eval_params,
+                        resample=True
+                    )
+                except TypeError:
+                    # Ultimate fallback: just use core parameters
+                    masks, flows, styles, diameters = self.model.eval(
+                        image,
+                        **eval_params
+                    )
             
             print(f"  Detected {len(np.unique(masks))-1} potential cells before filtering")
             
