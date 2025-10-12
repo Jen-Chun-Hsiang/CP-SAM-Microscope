@@ -5,8 +5,12 @@ CellPose-SAM Image Processing Script
 This script processes PNG images using CellPose-SAM for cell segmentation,
 saves processed images, and exports quantified measurements.
 
+Compatible with Cellpose versions 2.0 through 4.0+
+- Handles API changes in Cellpose 4.0+ (channels parameter deprecated, 3 return values)
+- Falls back gracefully for older versions (4 return values)
+
 Requirements:
-- cellpose
+- cellpose (2.0+, tested with 4.0+)
 - numpy
 - matplotlib
 - skimage
@@ -60,12 +64,16 @@ class CellPoseProcessor:
         """
         Initialize the CellPose processor optimized for partial membrane labeling
         
+        Note: Compatible with Cellpose 2.0-4.0+
+        - In Cellpose 4.0+, channels are automatically detected from image (3-channel images)
+        - The 'channels' parameter is kept for preprocessing logic compatibility
+        
         Args:
             input_folder (str): Path to folder containing PNG images
             image_save_folder (str): Path to save processed images
             result_save_folder (str): Path to save NPZ results
             model_type (str): CellPose model type - 'cyto2' best for membrane staining
-            channels (list): Channel configuration [cytoplasm, nucleus]
+            channels (list): Channel configuration [cytoplasm, nucleus] - used for preprocessing only
             diameter (float): Expected cell diameter in pixels (estimate neuron size)
             flow_threshold (float): Flow error threshold (lower = more permissive)
             cellprob_threshold (float): Cell probability threshold (lower = more permissive)
@@ -245,45 +253,34 @@ class CellPoseProcessor:
             print(f"    Cell probability threshold: {self.cellprob_threshold}")
             print(f"    Min size: {self.min_size}")
             
-            # Prepare eval parameters (compatible with Cellpose 2.0+)
+            # Prepare eval parameters (compatible with Cellpose 4.0+)
+            # In Cellpose 4.0+, 'channels' parameter is deprecated - all channels used automatically
             eval_params = {
                 'diameter': self.diameter,
-                'channels': self.channels,
                 'flow_threshold': self.flow_threshold,
                 'cellprob_threshold': self.cellprob_threshold,
                 'min_size': self.min_size,
                 'normalize': self.normalize,
                 'do_3D': self.do_3D,
+                'resample': True,  # Use flow resampling for better results
+                'tile_overlap': 0.1,
             }
             
-            # Add optional parameters that may not be available in all versions
-            # Cellpose 2.0+ uses 'resample' instead of 'net_avg'
-            # 'augment' and 'tile' parameters may vary by version
-            try:
-                # Try with tile parameters (for large images)
-                masks, flows, styles, diameters = self.model.eval(
-                    image,
-                    **eval_params,
-                    resample=True,  # Use flow resampling for better results (Cellpose 2.0+)
-                    augment=False,  # Disable test-time augmentation (can be slow)
-                    tile=True,      # Use tiling for large images
-                    tile_overlap=0.1
-                )
-            except TypeError as te:
-                # Fall back without unsupported parameters
-                print(f"  Note: Some eval parameters not supported, using basic parameters")
-                try:
-                    masks, flows, styles, diameters = self.model.eval(
-                        image,
-                        **eval_params,
-                        resample=True
-                    )
-                except TypeError:
-                    # Ultimate fallback: just use core parameters
-                    masks, flows, styles, diameters = self.model.eval(
-                        image,
-                        **eval_params
-                    )
+            # Call model.eval - handle different return values across versions
+            # Cellpose 4.0+ returns (masks, flows, styles) - 3 values
+            # Cellpose <4.0 returns (masks, flows, styles, diameters) - 4 values
+            result = self.model.eval(image, **eval_params)
+            
+            # Unpack based on number of return values
+            if len(result) == 3:
+                # Cellpose 4.0+
+                masks, flows, styles = result
+                diameters = None  # Not returned in v4.0+
+            elif len(result) == 4:
+                # Cellpose <4.0
+                masks, flows, styles, diameters = result
+            else:
+                raise ValueError(f"Unexpected number of return values from model.eval(): {len(result)}")
             
             print(f"  Detected {len(np.unique(masks))-1} potential cells before filtering")
             
