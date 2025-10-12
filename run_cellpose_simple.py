@@ -27,6 +27,10 @@ except Exception as e:
     print(f"Error importing CellPoseProcessor from ImageProcessing.py: {e}")
     sys.exit(1)
 
+# Default folders (change these to your preferred defaults)
+DEFAULT_RAW_FOLDER = '/storage1/fs1/KerschensteinerD/Active/Emily/PreyCaptureRGC/Immunochemistry/CellPose/test_input_images'
+DEFAULT_CELL_POSE_SAVE_FOLDER = '/storage1/fs1/KerschensteinerD/Active/Emily/PreyCaptureRGC/Immunochemistry/CellPose/test_output_images'
+
 
 def detect_image_type(raw_folder: Path) -> str:
     """Choose 'tif' if any .tif/.tiff files exist, otherwise default to 'png'."""
@@ -42,10 +46,10 @@ def detect_image_type(raw_folder: Path) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description="Simple CellPose runner: process a folder of images")
-    parser.add_argument('--raw', '--raw_image_folder', dest='raw', required=True,
-                        help='Folder containing raw images (png or tiff)')
-    parser.add_argument('--out', '--cell_pose_save_folder', dest='out', required=True,
-                        help='Destination folder where processed images and results will be saved')
+    parser.add_argument('--raw', '--raw_image_folder', dest='raw', default=DEFAULT_RAW_FOLDER,
+                        help=f'Folder containing raw images (png or tiff). Default: {DEFAULT_RAW_FOLDER}')
+    parser.add_argument('--out', '--cell_pose_save_folder', dest='out', default=DEFAULT_CELL_POSE_SAVE_FOLDER,
+                        help=f'Destination folder where processed images and results will be saved. Default: {DEFAULT_CELL_POSE_SAVE_FOLDER}')
     parser.add_argument('--type', '-t', dest='itype', default=None,
                         help="Image type/extension to process (png or tif). If omitted the script will auto-detect")
     parser.add_argument('--contains', '-c', default=None, help='Optional substring to filter filenames')
@@ -59,8 +63,13 @@ def main():
     out_folder = Path(args.out).expanduser().resolve()
 
     if not raw_folder.exists():
-        print(f"Raw folder does not exist: {raw_folder}")
-        sys.exit(1)
+        # Create the folder so user can drop images there; don't error out
+        try:
+            raw_folder.mkdir(parents=True, exist_ok=True)
+            print(f"Raw folder did not exist, created: {raw_folder}\nPlease add images to this folder and re-run the script.")
+        except Exception as e:
+            print(f"Could not create raw folder '{raw_folder}': {e}")
+            sys.exit(1)
 
     # Create destination subfolders
     images_out = out_folder / 'images'
