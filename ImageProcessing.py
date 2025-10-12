@@ -25,7 +25,7 @@ from skimage.color import label2rgb
 import json
 
 try:
-    from cellpose import models, io, plot
+    from cellpose import models, io, plot, core
     import cellpose
     print("CellPose imported successfully")
     
@@ -88,7 +88,17 @@ class CellPoseProcessor:
         
         # Determine GPU usage
         if gpu is None:
-            self.gpu = bool(models.use_gpu())
+            # Use core.use_gpu() for Cellpose 2.0+
+            # Fall back to models.use_gpu() for older versions
+            try:
+                self.gpu = bool(core.use_gpu())
+            except AttributeError:
+                try:
+                    self.gpu = bool(models.use_gpu())
+                except AttributeError:
+                    # If neither works, default to False
+                    print("Warning: Could not detect GPU availability, defaulting to CPU")
+                    self.gpu = False
         else:
             self.gpu = bool(gpu)
         
