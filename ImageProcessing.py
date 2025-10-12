@@ -347,9 +347,9 @@ class CellPoseProcessor:
         intensity_image = None
         if masks is not None:
             if masks.ndim == 2:
-                if image.ndim == 2:
+                if image.ndim == 2 and image.shape == masks.shape:
                     intensity_image = image
-                elif image.ndim == 3 and image.shape[2] >= 1:
+                elif image.ndim == 3 and image.shape[:2] == masks.shape and image.shape[2] >= 1:
                     intensity_image = image[:, :, 0]
             elif masks.ndim == 3:
                 if image.ndim == 3 and image.shape == masks.shape:
@@ -464,11 +464,17 @@ class CellPoseProcessor:
             axes[0,2].axis('off')
             
             # Overlay on original
+            base_img = None
             if orig_view is not None:
                 if orig_view.ndim == 3:
                     base_img = orig_view[:,:,0] if orig_view.shape[2] >= 1 else np.mean(orig_view, axis=2)
                 else:
                     base_img = orig_view
+                
+                # Ensure base_img matches masks_view shape
+                if base_img.shape != masks_view.shape:
+                    # Resize base_img to match masks_view
+                    base_img = cv2.resize(base_img, (masks_view.shape[1], masks_view.shape[0]), interpolation=cv2.INTER_LINEAR)
             
             overlay_img = label2rgb(masks_view, image=base_img, alpha=0.4, bg_label=0, colors=plt.cm.Set1(np.linspace(0, 1, 12)))
             axes[1,0].imshow(overlay_img)
@@ -476,9 +482,17 @@ class CellPoseProcessor:
             axes[1,0].axis('off')
             
             # Contours only
-            contour_img = base_img.copy()
-            if len(contour_img.shape) == 2:
-                contour_img = np.stack([contour_img, contour_img, contour_img], axis=-1)
+            if base_img is not None:
+                contour_img = base_img.copy()
+                if len(contour_img.shape) == 2:
+                    contour_img = np.stack([contour_img, contour_img, contour_img], axis=-1)
+            else:
+                # Create a blank image if base_img is not available
+                contour_img = np.zeros((*masks_view.shape, 3), dtype=np.uint8)
+            
+            # Normalize contour_img to 0-255 range if needed
+            if contour_img.dtype != np.uint8:
+                contour_img = ((contour_img - contour_img.min()) / (contour_img.max() - contour_img.min() + 1e-8) * 255).astype(np.uint8)
             
             # Draw contours for each cell
             for cell_id in np.unique(masks_view)[1:]:  # Skip background (0)
