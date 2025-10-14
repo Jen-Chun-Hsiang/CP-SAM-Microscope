@@ -26,7 +26,7 @@ def main():
 
     # Check GPU availability
     cuda_available = torch.cuda.is_available()
-    gpu_ok = models.use_gpu()
+    gpu_ok = torch.cuda.is_available()  # or core.use_gpu() if preferred
     logger.info(f"CUDA available: {cuda_available}")
     if cuda_available:
         logger.info(f"GPU: {torch.cuda.get_device_name(0)}")

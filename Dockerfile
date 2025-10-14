@@ -35,8 +35,8 @@ RUN sed 's/opencv-python>=4\.5\.0/opencv-python-headless>=4.5.0/g' /tmp/requirem
     python3 -m pip install tifffile && \
     rm /tmp/requirements.txt /tmp/requirements-docker.txt
 
-# Verify numpy version is <2.0 to avoid conflicts
-RUN python3 -c "import numpy as np; version=tuple(map(int, np.__version__.split('.')[:2])); assert version[0] < 2, f'NumPy {np.__version__} >= 2.0 will cause conflicts with matplotlib, pandas, and contourpy. Please use numpy<2.0'; print(f'✓ NumPy {np.__version__} is compatible')"
+# Verify numpy version is >=2.0 for compatibility with opencv-python-headless
+RUN python3 -c "import numpy as np; version=tuple(map(int, np.__version__.split('.')[:2])); assert version[0] >= 2, f'NumPy {np.__version__} < 2.0 is incompatible with opencv-python-headless. Please use numpy>=2.0'; print(f'✓ NumPy {np.__version__} is compatible')"
 
 # Sanity print and comprehensive verification
 RUN python3 - <<'PY'
@@ -53,10 +53,10 @@ print(f"✓ OpenCV: {cv2.__version__}")
 # Verify numpy version constraint
 major, minor = map(int, numpy.__version__.split('.')[:2])
 if major >= 2:
-    print(f"⚠ WARNING: NumPy {numpy.__version__} may cause conflicts!")
-    sys.exit(1)
+    print(f"✓ NumPy {numpy.__version__} version constraint satisfied (>=2.0)")
 else:
-    print(f"✓ NumPy version constraint satisfied (<2.0)")
+    print(f"⚠ WARNING: NumPy {numpy.__version__} < 2.0 may cause conflicts with opencv!")
+    sys.exit(1)
 PY
 
 # --- Create non-root user AFTER installs ---

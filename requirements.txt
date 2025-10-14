@@ -3,8 +3,8 @@
 # Version constraints ensure compatibility across all dependencies
 
 # Core dependencies with version constraints to avoid conflicts
-numpy>=1.22.4,<2.0  # Required by matplotlib, pandas, contourpy (all need <2.0)
-scipy>=1.9.0,<1.15.0  # Compatible with numpy<2.0
+numpy>=2.0  # Updated to support opencv-python-headless >=4.12
+scipy>=1.9.0,<1.15.0  # Compatible with numpy>=2.0
 
 # Image processing and scientific computing
 cellpose>=2.0  # Main segmentation tool
@@ -12,8 +12,8 @@ scikit-image>=0.19.0  # Image processing utilities
 opencv-python>=4.5.0  # Computer vision library
 
 # Visualization
-matplotlib>=3.5.0  # Plotting library (requires numpy<2)
+matplotlib>=3.5.0  # Plotting library (now supports numpy>=2.0)
 
 # Data handling (if needed)
-pandas>=1.4.0  # Data analysis (requires numpy<2 and pytz)
-pytz>=2020.1  # Timezone support for pandas
+pandas>=1.4.0  # Data analysis (now supports numpy>=2.0)
+pytz>=2020.1  # Timezone support for pandasnts for the CP-SAM-Microscope project
