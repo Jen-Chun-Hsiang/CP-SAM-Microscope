@@ -1,7 +1,7 @@
 import numpy as np
 import logging
 from datetime import datetime
-from cellpose import models, core, io, plot, train, utils
+from cellpose import models, core, io, plot, train, utils, metrics
 from pathlib import Path
 from tqdm import trange
 import matplotlib.pyplot as plt
@@ -74,6 +74,66 @@ def main():
     # Plot and save losses
     plot_path = plot_losses(train_losses, test_losses, test_result_dir, exp_tag)
     logger.info(f"Loss plot saved to {plot_path}")
+    
+    # Generate predictions on test data using the trained model
+    logger.info("Generating mask predictions on test data...")
+    trained_model = models.CellposeModel(gpu=gpu_ok, pretrained_model=new_model_path)
+    
+    # Create directory for prediction outputs
+    prediction_dir = Path(test_result_dir) / f"predictions_{exp_tag}"
+    prediction_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Run predictions on test data (following the tutorial pattern)
+    masks = trained_model.eval(test_data, batch_size=32)[0]
+    
+    # Calculate average precision to evaluate performance
+    ap = metrics.average_precision(test_labels, masks)[0]
+    logger.info(f'Average precision at IoU threshold 0.5 = {ap[:,0].mean():.3f}')
+    logger.info(f'Average precision at IoU threshold 0.75 = {ap[:,5].mean():.3f}')
+    logger.info(f'Average precision at IoU threshold 0.9 = {ap[:,8].mean():.3f}')
+    
+    # Save individual masks and visualizations
+    for idx in range(len(test_data)):
+        logger.info(f"Saving results for test image {idx+1}/{len(test_data)}")
+        
+        # Save mask as numpy array
+        mask_save_path = prediction_dir / f"test_mask_{idx:03d}.npy"
+        np.save(mask_save_path, masks[idx])
+        
+        # Save visualization
+        fig = plt.figure(figsize=(12, 5))
+        
+        # Original image
+        plt.subplot(1, 3, 1)
+        plt.imshow(test_data[idx], cmap='gray')
+        plt.title(f'Original Image {idx}')
+        plt.axis('off')
+        
+        # Ground truth mask
+        plt.subplot(1, 3, 2)
+        plt.imshow(test_labels[idx], cmap='tab20')
+        plt.title('Ground Truth')
+        plt.axis('off')
+        
+        # Predicted mask
+        plt.subplot(1, 3, 3)
+        plt.imshow(masks[idx], cmap='tab20')
+        plt.title('Predicted Mask')
+        plt.axis('off')
+        
+        plt.tight_layout()
+        vis_save_path = prediction_dir / f"test_comparison_{idx:03d}.png"
+        plt.savefig(vis_save_path, dpi=150, bbox_inches='tight')
+        plt.close()
+        
+        logger.info(f"Saved mask to {mask_save_path}")
+        logger.info(f"Saved visualization to {vis_save_path}")
+    
+    # Save all metrics
+    metrics_save_path = prediction_dir / f"metrics_{exp_tag}.npy"
+    np.save(metrics_save_path, {'ap': ap, 'masks': masks})
+    logger.info(f"Metrics saved to {metrics_save_path}")
+    logger.info(f"All predictions saved to {prediction_dir}")
     
 
 if __name__ == '__main__':
