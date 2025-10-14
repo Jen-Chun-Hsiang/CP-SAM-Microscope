@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from natsort import natsorted
 import torch
 from utils.plot_utils import plot_losses
+from utils.file_utils import cleanup_multiple_dirs
 
 
 
@@ -26,6 +27,11 @@ def main():
     # Let cellpose set up logging and write the logfile into our desired dir
     timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
     logger, logfile = io.logger_setup(cp_path=logging_save_dir, logfile_name=f"train_cellpose_{timestamp}.log")
+
+    # Clean up temporary files in train and test directories
+    logger.info("Cleaning up temporary files...")
+    cleanup_results = cleanup_multiple_dirs([train_seg_dir, test_seg_dir], logger=logger)
+    logger.info(f"Cleanup completed: {sum(cleanup_results.values())} total files removed")
 
     # Check GPU availability
     cuda_available = torch.cuda.is_available()
