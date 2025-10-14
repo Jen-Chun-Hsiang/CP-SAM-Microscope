@@ -86,12 +86,7 @@ def main():
     # Run predictions on test data (following the tutorial pattern)
     masks = trained_model.eval(test_data, batch_size=32)[0]
     
-    # Calculate average precision to evaluate performance
-    ap = metrics.average_precision(test_labels, masks)[0]
-    logger.info(f'Average precision at IoU threshold 0.5 = {ap[:,0].mean():.3f}')
-    logger.info(f'Average precision at IoU threshold 0.75 = {ap[:,5].mean():.3f}')
-    logger.info(f'Average precision at IoU threshold 0.9 = {ap[:,8].mean():.3f}')
-    
+
     # Save individual masks and visualizations
     for idx in range(len(test_data)):
         logger.info(f"Saving results for test image {idx+1}/{len(test_data)}")
