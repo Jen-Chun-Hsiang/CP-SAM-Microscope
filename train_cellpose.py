@@ -52,6 +52,7 @@ def main():
 
     model_name = "cellpose_rgc_SPP1_101325"
     exp_tag = f"{model_name}_{timestamp}"
+    n_epochs = 200
     learning_rate = 1e-5
     weight_decay = 0.1
     batch_size = 1
