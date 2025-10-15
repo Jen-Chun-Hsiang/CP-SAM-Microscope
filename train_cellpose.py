@@ -13,9 +13,10 @@ from utils.file_utils import cleanup_multiple_dirs
 
 
 def main():
+    additional_tag = '_2025091801'
     logging_save_dir = '/storage1/fs1/KerschensteinerD/Active/Emily/PreyCaptureRGC/Immunochemistry/CellPose/Logs'
-    train_seg_dir = '/storage1/fs1/KerschensteinerD/Active/Emily/PreyCaptureRGC/Immunochemistry/CellPose/Train_Segmentations'
-    test_seg_dir = '/storage1/fs1/KerschensteinerD/Active/Emily/PreyCaptureRGC/Immunochemistry/CellPose/Test_Segmentations'
+    train_seg_dir = f'/storage1/fs1/KerschensteinerD/Active/Emily/PreyCaptureRGC/Immunochemistry/CellPose/Train_Segmentations{additional_tag}'
+    test_seg_dir = f'/storage1/fs1/KerschensteinerD/Active/Emily/PreyCaptureRGC/Immunochemistry/CellPose/Test_Segmentations{additional_tag}'
     model_save_dir = '/storage1/fs1/KerschensteinerD/Active/Emily/PreyCaptureRGC/Immunochemistry/CellPose/Models'
     test_result_dir = '/storage1/fs1/KerschensteinerD/Active/Emily/PreyCaptureRGC/Immunochemistry/CellPose/Test_Results'
     # Make sure the logging directory exists (create parents if needed)
@@ -50,7 +51,7 @@ def main():
     train_data, train_labels, _, test_data, test_labels, _ = output
     # (not passing test data into function to speed up training)
 
-    model_name = "cellpose_rgc_SPP1_101525"
+    model_name = "cellpose_rgc_SPP1_101525_2025091801"
     exp_tag = f"{model_name}_{timestamp}"
     n_epochs = 200
     learning_rate = 1e-5
