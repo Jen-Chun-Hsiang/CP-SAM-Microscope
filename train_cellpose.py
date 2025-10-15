@@ -50,7 +50,7 @@ def main():
     train_data, train_labels, _, test_data, test_labels, _ = output
     # (not passing test data into function to speed up training)
 
-    model_name = "cellpose_rgc_SPP1_101325"
+    model_name = "cellpose_rgc_SPP1_101525"
     exp_tag = f"{model_name}_{timestamp}"
     n_epochs = 200
     learning_rate = 1e-5
@@ -60,6 +60,8 @@ def main():
     new_model_path, train_losses, test_losses = train.train_seg(model.net,
                                                                 train_data=train_data,
                                                                 train_labels=train_labels,
+                                                                test_data=test_data,
+                                                                test_labels=test_labels,
                                                                 batch_size=batch_size,
                                                                 n_epochs=n_epochs,
                                                                 learning_rate=learning_rate,
@@ -126,7 +128,7 @@ def main():
     
     # Save all metrics
     metrics_save_path = prediction_dir / f"metrics_{exp_tag}.npy"
-    np.save(metrics_save_path, {'ap': ap, 'masks': masks})
+    np.save(metrics_save_path, {'masks': masks})
     logger.info(f"Metrics saved to {metrics_save_path}")
     logger.info(f"All predictions saved to {prediction_dir}")
     
